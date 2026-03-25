@@ -67,7 +67,7 @@ Both live and archive files use GeoJSON FeatureCollection format. Each Feature i
         "last_seen": "2026-03-24T14:31:50Z",
         "altitude_ft": 3500,
         "speed_kts": 120,
-        "detection_method": "grid",
+        "detection_method": "grid",  // "grid" or "exhaustive"
         "survey_bounds": [-93.4, 44.8, -93.0, 45.1],
         "globe_url": "https://globe.adsb.lol/?icao=a1b2c3",
         "registration_url": "https://registry.faa.gov/..."
@@ -87,7 +87,8 @@ Same format as live, with additional summary fields on each feature:
     "active": false,
     "duration_min": 153,
     "track_miles": 245.1,
-    "parallel_paths": 14
+    "parallel_paths": 14,
+    "parallel_path_spacing_mi": 0.4
   }
 }
 ```
@@ -114,7 +115,7 @@ Full-screen map with a persistent right-side panel (280px wide).
 - Date picker: left/right arrows to step through days, click date for calendar, "Live" button to return to real-time view
 
 **Map area** (left):
-- MapLibre GL JS with a dark basemap
+- MapLibre GL JS with a dark basemap (e.g., MapTiler free tier or Protomaps self-hosted tiles)
 - Survey aircraft tracks rendered as colored LineStrings
 - Each aircraft gets a unique color for distinguishability
 - Active aircraft show a pulsing dot at the head of the track
@@ -156,6 +157,7 @@ Date and selected aircraft encoded in the URL hash for shareable links:
 2. **Archive accumulator**: maintains a list of all detections seen today (including aircraft that have timed out), serialized as GeoJSON for the daily archive file
 3. **Track simplification**: Douglas-Peucker simplification for archive tracks to reduce file size
 4. **External link generation**: compute FAA registration URL, FlightAware URL, ADS-B Exchange URL from ICAO hex and callsign
+5. **Capture ground speed**: the ADSB.lol API provides `gs` (ground speed in knots) which the detector currently ignores. Start storing it on each TrackPoint so it's available for the frontend and for survey type classification.
 
 ### Configuration
 
