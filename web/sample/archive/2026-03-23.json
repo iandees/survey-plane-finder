@@ -1,0 +1,62 @@
+{
+  "type": "FeatureCollection",
+  "generated_at": "2026-03-23T16:10:00Z",
+  "date": "2026-03-23",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-93.50, 44.80], [-93.45, 44.80], [-93.40, 44.80],
+          [-93.40, 44.81], [-93.45, 44.81], [-93.50, 44.81],
+          [-93.50, 44.82], [-93.45, 44.82], [-93.40, 44.82]
+        ]
+      },
+      "properties": {
+        "icao": "b2c3d4",
+        "callsign": "N22222",
+        "first_seen": "2026-03-23T13:00:00Z",
+        "last_seen": "2026-03-23T15:55:00Z",
+        "altitude_ft": 3200,
+        "speed_kts": 110,
+        "detection_method": "grid",
+        "survey_bounds": [-93.50, 44.80, -93.40, 44.82],
+        "active": false,
+        "duration_min": 55,
+        "track_miles": 91.0,
+        "parallel_paths": 7,
+        "globe_url": "https://globe.adsb.lol/?icao=b2c3d4",
+        "registration_url": "https://globe.adsbexchange.com/?icao=b2c3d4",
+        "flightaware_url": "https://flightaware.com/live/flight/N22222"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-93.20, 45.10], [-93.15, 45.10], [-93.10, 45.10],
+          [-93.10, 45.11], [-93.15, 45.11], [-93.20, 45.11]
+        ]
+      },
+      "properties": {
+        "icao": "e5f6a7",
+        "callsign": "N33333",
+        "first_seen": "2026-03-23T14:15:00Z",
+        "last_seen": "2026-03-23T15:45:00Z",
+        "altitude_ft": 2600,
+        "speed_kts": 100,
+        "detection_method": "exhaustive",
+        "survey_bounds": [-93.20, 45.10, -93.10, 45.11],
+        "active": false,
+        "duration_min": 90,
+        "track_miles": 38.5,
+        "parallel_paths": 4,
+        "globe_url": "https://globe.adsb.lol/?icao=e5f6a7",
+        "registration_url": "https://globe.adsbexchange.com/?icao=e5f6a7",
+        "flightaware_url": "https://flightaware.com/live/flight/N33333"
+      }
+    }
+  ]
+}

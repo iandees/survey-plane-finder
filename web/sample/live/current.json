@@ -1,0 +1,55 @@
+{
+  "type": "FeatureCollection",
+  "generated_at": "2026-03-24T14:32:00Z",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-93.35, 44.90], [-93.30, 44.90], [-93.25, 44.90],
+          [-93.25, 44.91], [-93.30, 44.91], [-93.35, 44.91],
+          [-93.35, 44.92], [-93.30, 44.92], [-93.25, 44.92]
+        ]
+      },
+      "properties": {
+        "icao": "a1b2c3",
+        "callsign": "N12345",
+        "first_seen": "2026-03-24T13:45:00Z",
+        "last_seen": "2026-03-24T14:31:50Z",
+        "altitude_ft": 3500,
+        "speed_kts": 120,
+        "detection_method": "grid",
+        "survey_bounds": [-93.35, 44.90, -93.25, 44.92],
+        "active": true,
+        "globe_url": "https://globe.adsb.lol/?icao=a1b2c3",
+        "registration_url": "https://globe.adsbexchange.com/?icao=a1b2c3",
+        "flightaware_url": "https://flightaware.com/live/flight/N12345"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-93.10, 45.00], [-93.05, 45.00], [-93.00, 45.00],
+          [-93.00, 45.01], [-93.05, 45.01], [-93.10, 45.01]
+        ]
+      },
+      "properties": {
+        "icao": "d4e5f6",
+        "callsign": "N67890",
+        "first_seen": "2026-03-24T14:00:00Z",
+        "last_seen": "2026-03-24T14:30:00Z",
+        "altitude_ft": 2800,
+        "speed_kts": 95,
+        "detection_method": "exhaustive",
+        "survey_bounds": [-93.10, 45.00, -93.00, 45.01],
+        "active": true,
+        "globe_url": "https://globe.adsb.lol/?icao=d4e5f6",
+        "registration_url": "https://globe.adsbexchange.com/?icao=d4e5f6",
+        "flightaware_url": "https://flightaware.com/live/flight/N67890"
+      }
+    }
+  ]
+}
