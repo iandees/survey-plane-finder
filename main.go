@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -13,7 +14,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"survey-plane-finder/archive"
+	"survey-plane-finder/geojson"
 	"survey-plane-finder/model"
+	"survey-plane-finder/r2"
 	"time"
 )
 
@@ -623,6 +627,30 @@ func main() {
 		log.Printf("Loaded %d aircraft tracks from disk", len(aircraftTracks))
 	}
 
+	// R2 upload configuration (optional — runs without R2 if not configured)
+	var r2Client *r2.Client
+	var todayArchive *archive.Archive
+	var archiveDates []string
+
+	r2Endpoint := os.Getenv("R2_ENDPOINT")
+	if r2Endpoint != "" {
+		client, err := r2.NewClient(r2.Config{
+			Bucket:          os.Getenv("R2_BUCKET_NAME"),
+			AccessKeyID:     os.Getenv("R2_ACCESS_KEY_ID"),
+			SecretAccessKey: os.Getenv("R2_SECRET_ACCESS_KEY"),
+			Endpoint:        r2Endpoint,
+		})
+		if err != nil {
+			log.Fatalf("Failed to create R2 client: %v", err)
+		}
+		r2Client = client
+		todayArchive = archive.New()
+		archiveDates = []string{}
+		log.Println("R2 upload enabled")
+	} else {
+		log.Println("R2 not configured, running in local-only mode")
+	}
+
 	// Ensure we save data when shutting down
 	defer func() {
 		err := saveAircraftTracks()
@@ -635,6 +663,19 @@ func main() {
 
 	pollTicker := time.NewTicker(pollInterval)
 	trackFileTicker := time.NewTicker(heatmapGenerationInterval)
+
+	var liveUploadTicker, archiveUploadTicker *time.Ticker
+	if r2Client != nil {
+		liveUploadTicker = time.NewTicker(60 * time.Second)
+		archiveUploadTicker = time.NewTicker(5 * time.Minute)
+	} else {
+		liveUploadTicker = time.NewTicker(time.Hour)
+		liveUploadTicker.Stop()
+		archiveUploadTicker = time.NewTicker(time.Hour)
+		archiveUploadTicker.Stop()
+	}
+
+	currentDate := time.Now().Format("2006-01-02")
 
 	for {
 		select {
@@ -655,6 +696,52 @@ func main() {
 				log.Printf("Error saving aircraft tracks: %v", err)
 			} else {
 				log.Printf("Saved %d aircraft tracks to disk", len(aircraftTracks))
+			}
+		case <-liveUploadTicker.C:
+			if r2Client != nil {
+				collection := geojson.BuildLiveCollection(aircraftTracks)
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				err := r2Client.UploadJSON(ctx, "live/current.json", collection)
+				cancel()
+				if err != nil {
+					log.Printf("Error uploading live data: %v", err)
+				} else {
+					log.Printf("Uploaded live data: %d aircraft", len(collection.Features))
+				}
+
+				// Update archive with all currently-flagged aircraft
+				for _, track := range aircraftTracks {
+					if track.Flagged {
+						todayArchive.AddOrUpdate(track)
+					}
+				}
+			}
+		case <-archiveUploadTicker.C:
+			if r2Client != nil {
+				today := time.Now().Format("2006-01-02")
+				if today != currentDate {
+					archiveDates = append(archiveDates, currentDate)
+					idxCtx, idxCancel := context.WithTimeout(context.Background(), 10*time.Second)
+					indexData := map[string]interface{}{"dates": archiveDates}
+					err := r2Client.UploadJSON(idxCtx, "index.json", indexData)
+					idxCancel()
+					if err != nil {
+						log.Printf("Error uploading index.json: %v", err)
+					}
+
+					todayArchive.ResetForNewDay()
+					currentDate = today
+				}
+
+				collection := todayArchive.BuildCollection(currentDate)
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				err := r2Client.UploadJSON(ctx, fmt.Sprintf("archive/%s.json", currentDate), collection)
+				cancel()
+				if err != nil {
+					log.Printf("Error uploading archive: %v", err)
+				} else {
+					log.Printf("Uploaded archive for %s: %d detections", currentDate, len(collection.Features))
+				}
 			}
 		}
 	}
