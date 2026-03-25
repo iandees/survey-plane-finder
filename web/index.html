@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Survey Plane Finder</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css">
+</head>
+<body>
+  <header class="top-bar">
+    <span class="logo">✈ Survey Plane Finder</span>
+    <div class="stats">
+      <span class="stat" id="active-count"><strong>0</strong> active</span>
+      <span class="stat" id="today-count"><strong>0</strong> today</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="date-nav">
+      <button class="date-arrow" id="date-prev">‹</button>
+      <button class="date-display" id="date-display">● Live</button>
+      <button class="date-arrow" id="date-next">›</button>
+      <button class="live-btn" id="live-btn" style="display:none">● Live</button>
+    </div>
+  </header>
+
+  <main class="content">
+    <div id="map" class="map"></div>
+    <aside class="side-panel" id="side-panel">
+      <div class="panel-header">
+        <span>Aircraft</span>
+        <div class="panel-tabs" id="panel-tabs">
+          <button class="panel-tab active" data-tab="live">Live</button>
+          <button class="panel-tab" data-tab="today">Today</button>
+        </div>
+      </div>
+      <div class="aircraft-list" id="aircraft-list"></div>
+      <div class="detail-view" id="detail-view" style="display:none"></div>
+    </aside>
+  </main>
+
+  <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
+  <script src="colors.js"></script>
+  <script src="data.js"></script>
+  <script src="map.js"></script>
+  <script src="panel.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
