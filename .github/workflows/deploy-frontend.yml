@@ -23,8 +23,7 @@ jobs:
           aws s3 sync web/ s3://$R2_BUCKET_NAME/ \
             --endpoint-url "$R2_ENDPOINT" \
             --exclude "sample/*" \
-            --content-type "text/html" \
-            --no-sign-request=false
+            --content-type "text/html"
 
           # Fix content types for non-HTML files
           aws s3 cp s3://$R2_BUCKET_NAME/style.css s3://$R2_BUCKET_NAME/style.css \
