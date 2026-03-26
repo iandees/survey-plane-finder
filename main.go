@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"survey-plane-finder/archive"
+	"survey-plane-finder/bincraft"
 	"survey-plane-finder/geojson"
 	"survey-plane-finder/model"
 	"survey-plane-finder/r2"
@@ -63,22 +65,56 @@ const (
 	heatmapDirectory = "heatmaps"
 )
 
-// fetchAircraftData retrieves aircraft data from ADSB.lol API
-func fetchAircraftData(lat, lon float64, radius int) ([]model.Aircraft, error) {
-	url := fmt.Sprintf("https://api.adsb.lol/v2/point/%f/%f/%d", lat, lon, radius)
+// fetchAircraftData retrieves aircraft data from adsb.lol binCraft API
+func fetchAircraftData(south, north, west, east float64) ([]model.Aircraft, error) {
+	url := fmt.Sprintf("https://adsb.lol/re-api/?binCraft&zstd&box=%f,%f,%f,%f",
+		south, north, west, east)
 
-	resp, err := http.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "survey-plane-finder/1.0")
+	req.Header.Set("Referer", "https://adsb.lol/")
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	var data model.ADSBResponse
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
 
-	return data.Aircraft, nil
+	bcResp, err := bincraft.Decode(body)
+	if err != nil {
+		return nil, fmt.Errorf("decode binCraft: %w", err)
+	}
+
+	aircraft := make([]model.Aircraft, 0, len(bcResp.Aircraft))
+	for _, ac := range bcResp.Aircraft {
+		if !ac.HasPosition {
+			continue
+		}
+		a := model.Aircraft{
+			Hex:    ac.Hex,
+			Flight: ac.Callsign,
+			Lat:    ac.Lat,
+			Lon:    ac.Lon,
+			Track:  ac.Track,
+		}
+		if ac.HasAltBaro {
+			a.Alt = float64(ac.AltBaro)
+		}
+		if ac.HasGS {
+			a.GS = ac.GS
+		}
+		aircraft = append(aircraft, a)
+	}
+
+	return aircraft, nil
 }
 
 func updateAircraftTracks(aircraft []model.Aircraft) {
@@ -626,10 +662,11 @@ func main() {
 		log.Printf("Using data directory: %s", dataDir)
 	}
 
-	// Default location (can be changed to your area of interest)
-	lat := 44.9561276
-	lon := -93.204049
-	radius := 250
+	// Default bounding box (Minneapolis area, ~250mi radius)
+	south := 40.0
+	north := 50.0
+	west := -98.0
+	east := -88.0
 	trackFile := dataPath("aircraft_tracks.json")
 
 	// Try to load saved tracks
@@ -714,7 +751,7 @@ func main() {
 	for {
 		select {
 		case <-pollTicker.C:
-			aircraft, err := fetchAircraftData(lat, lon, radius)
+			aircraft, err := fetchAircraftData(south, north, west, east)
 			if err != nil {
 				log.Printf("Error fetching data: %v", err)
 			}
