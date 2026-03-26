@@ -779,7 +779,7 @@ func main() {
 				watchBounds := [4]float64{west, south, east, north}
 				collection := geojson.BuildLiveCollection(aircraftTracks, &watchBounds)
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				err := r2Client.UploadJSON(ctx, "live/current.json", collection)
+				err := r2Client.UploadJSON(ctx, "live/current.json", collection, 60)
 				cancel()
 				if err != nil {
 					log.Printf("Error uploading live data: %v", err)
@@ -810,7 +810,7 @@ func main() {
 				// Upload index.json with all known dates
 				idxCtx, idxCancel := context.WithTimeout(context.Background(), 10*time.Second)
 				indexData := map[string]interface{}{"dates": archiveDates}
-				err := r2Client.UploadJSON(idxCtx, "index.json", indexData)
+				err := r2Client.UploadJSON(idxCtx, "index.json", indexData, 300)
 				idxCancel()
 				if err != nil {
 					log.Printf("Error uploading index.json: %v", err)
@@ -818,7 +818,7 @@ func main() {
 
 				collection := todayArchive.BuildCollection(currentDate)
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				err = r2Client.UploadJSON(ctx, fmt.Sprintf("archive/%s.json", currentDate), collection)
+				err = r2Client.UploadJSON(ctx, fmt.Sprintf("archive/%s.json", currentDate), collection, 300)
 				cancel()
 				if err != nil {
 					log.Printf("Error uploading archive: %v", err)

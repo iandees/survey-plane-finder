@@ -79,19 +79,27 @@ func (c *Client) DownloadJSON(ctx context.Context, key string, dest interface{})
 	return nil
 }
 
-func (c *Client) UploadJSON(ctx context.Context, key string, data interface{}) error {
+// UploadJSON uploads a JSON-serializable value to the given key.
+// Optional cacheMaxAge sets Cache-Control max-age in seconds (0 = omit header).
+func (c *Client) UploadJSON(ctx context.Context, key string, data interface{}, cacheMaxAge int) error {
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("marshal JSON: %w", err)
 	}
 
 	contentType := "application/json"
-	_, err = c.s3.PutObject(ctx, &s3.PutObjectInput{
+	input := &s3.PutObjectInput{
 		Bucket:      aws.String(c.bucket),
 		Key:         aws.String(key),
 		Body:        bytes.NewReader(jsonBytes),
 		ContentType: &contentType,
-	})
+	}
+	if cacheMaxAge > 0 {
+		cc := fmt.Sprintf("public, max-age=%d", cacheMaxAge)
+		input.CacheControl = &cc
+	}
+
+	_, err = c.s3.PutObject(ctx, input)
 	if err != nil {
 		return fmt.Errorf("upload to R2: %w", err)
 	}
