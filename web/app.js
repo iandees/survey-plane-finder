@@ -1,6 +1,6 @@
 (async function() {
-  // Use sample data for local dev, real R2 URL for production
-  const R2_BASE_URL = window.location.hostname === 'localhost' ? './sample' : 'https://pub-2603c9e966d0441e98803816bdbe9220.r2.dev';
+  // Use sample data for local dev, relative paths in production (frontend hosted alongside data in R2)
+  const R2_BASE_URL = window.location.hostname === 'localhost' ? './sample' : '.';
 
   // State
   let mode = 'live';

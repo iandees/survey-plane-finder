@@ -1,0 +1,40 @@
+name: Deploy frontend to R2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/deploy-frontend.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload frontend to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+        run: |
+          aws s3 sync web/ s3://$R2_BUCKET_NAME/ \
+            --endpoint-url "$R2_ENDPOINT" \
+            --exclude "sample/*" \
+            --content-type "text/html" \
+            --no-sign-request=false
+
+          # Fix content types for non-HTML files
+          aws s3 cp s3://$R2_BUCKET_NAME/style.css s3://$R2_BUCKET_NAME/style.css \
+            --endpoint-url "$R2_ENDPOINT" \
+            --content-type "text/css" \
+            --metadata-directive REPLACE
+
+          for f in app.js data.js map.js panel.js colors.js; do
+            aws s3 cp s3://$R2_BUCKET_NAME/$f s3://$R2_BUCKET_NAME/$f \
+              --endpoint-url "$R2_ENDPOINT" \
+              --content-type "application/javascript" \
+              --metadata-directive REPLACE
+          done
