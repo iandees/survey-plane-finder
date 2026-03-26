@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -74,7 +75,7 @@ func fetchAircraftData(south, north, west, east float64) ([]model.Aircraft, erro
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "survey-plane-finder/1.0")
+	req.Header.Set("User-Agent", "survey-plane-finder (https://github.com/iandees/survey-plane-finder)")
 	req.Header.Set("Referer", "https://adsb.lol/")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -523,16 +524,20 @@ func dataPath(filename string) string {
 }
 
 func saveAircraftTracks() error {
-	tracksData, err := json.MarshalIndent(aircraftTracks, "", "  ")
+	f, err := os.Create(dataPath("saved_tracks.gob"))
 	if err != nil {
-		return fmt.Errorf("error marshaling tracks: %v", err)
+		return fmt.Errorf("error creating tracks file: %v", err)
 	}
+	defer f.Close()
 
-	return os.WriteFile(dataPath("saved_tracks.json"), tracksData, 0644)
+	if err := gob.NewEncoder(f).Encode(aircraftTracks); err != nil {
+		return fmt.Errorf("error encoding tracks: %v", err)
+	}
+	return nil
 }
 
 func loadAircraftTracks() error {
-	data, err := os.ReadFile(dataPath("saved_tracks.json"))
+	f, err := os.Open(dataPath("saved_tracks.gob"))
 	if err != nil {
 		if os.IsNotExist(err) {
 			log.Println("No saved tracks file found, starting fresh")
@@ -540,8 +545,9 @@ func loadAircraftTracks() error {
 		}
 		return fmt.Errorf("error reading saved tracks: %v", err)
 	}
+	defer f.Close()
 
-	return json.Unmarshal(data, &aircraftTracks)
+	return gob.NewDecoder(f).Decode(&aircraftTracks)
 }
 
 func generateAircraftHeatmap(hex string, track *model.AircraftTrack) {
