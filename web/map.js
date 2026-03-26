@@ -41,10 +41,10 @@ const SurveyMap = (() => {
         type: 'line',
         source: 'watch-bounds',
         paint: {
-          'line-color': '#666',
-          'line-width': 1.5,
-          'line-dasharray': [4, 4],
-          'line-opacity': 0.6,
+          'line-color': '#ff8800',
+          'line-width': 2,
+          'line-dasharray': [6, 4],
+          'line-opacity': 0.8,
         },
       });
 
@@ -124,9 +124,11 @@ const SurveyMap = (() => {
   }
 
   function setWatchBounds(bounds) {
+    console.log('setWatchBounds called', { bounds, mapLoaded });
     if (!bounds || bounds.length !== 4) return;
     if (!mapLoaded) { pendingWatchBounds = bounds; return; }
     const [west, south, east, north] = bounds;
+    console.log('Drawing watch bounds', { west, south, east, north });
     map.getSource('watch-bounds').setData({
       type: 'FeatureCollection',
       features: [{
