@@ -131,6 +131,22 @@
     const active = features.filter(f => f.properties.active !== false).length;
     document.getElementById('active-count').innerHTML = `<strong>${active}</strong> active`;
     document.getElementById('today-count').innerHTML = `<strong>${features.length}</strong> today`;
+
+    // Update "last updated" time
+    if (data.generated_at) {
+      const updated = new Date(data.generated_at);
+      const ago = Math.round((Date.now() - updated.getTime()) / 1000);
+      let agoText;
+      if (ago < 60) agoText = `${ago}s ago`;
+      else if (ago < 3600) agoText = `${Math.floor(ago / 60)}m ago`;
+      else agoText = updated.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      document.getElementById('last-updated').textContent = `Updated ${agoText}`;
+    }
+
+    // Show watch area bounding box
+    if (data.watch_bounds) {
+      SurveyMap.setWatchBounds(data.watch_bounds);
+    }
   }
 
   function findFeature(icao) {

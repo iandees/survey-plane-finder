@@ -22,9 +22,10 @@ type Feature struct {
 }
 
 type FeatureCollection struct {
-	Type        string    `json:"type"`
-	GeneratedAt string    `json:"generated_at"`
-	Features    []Feature `json:"features"`
+	Type        string     `json:"type"`
+	GeneratedAt string     `json:"generated_at"`
+	WatchBounds *[4]float64 `json:"watch_bounds,omitempty"` // [west, south, east, north]
+	Features    []Feature  `json:"features"`
 }
 
 func BuildLiveFeature(track *model.AircraftTrack) Feature {
@@ -65,7 +66,9 @@ func BuildLiveFeature(track *model.AircraftTrack) Feature {
 	}
 }
 
-func BuildLiveCollection(tracks map[string]*model.AircraftTrack) FeatureCollection {
+// BuildLiveCollection builds a FeatureCollection of currently-flagged aircraft.
+// watchBounds is [south, north, west, east] or nil.
+func BuildLiveCollection(tracks map[string]*model.AircraftTrack, watchBounds *[4]float64) FeatureCollection {
 	features := make([]Feature, 0)
 	for _, track := range tracks {
 		if !track.Flagged || len(track.Points) < 2 {
@@ -77,6 +80,7 @@ func BuildLiveCollection(tracks map[string]*model.AircraftTrack) FeatureCollecti
 	return FeatureCollection{
 		Type:        "FeatureCollection",
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+		WatchBounds: watchBounds,
 		Features:    features,
 	}
 }

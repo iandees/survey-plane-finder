@@ -27,6 +27,25 @@ const SurveyMap = (() => {
     });
 
     map.on('load', () => {
+      // Watch area bounding box
+      map.addSource('watch-bounds', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      });
+
+      map.addLayer({
+        id: 'watch-bounds-line',
+        type: 'line',
+        source: 'watch-bounds',
+        paint: {
+          'line-color': '#666',
+          'line-width': 1.5,
+          'line-dasharray': [4, 4],
+          'line-opacity': 0.6,
+        },
+      });
+
+      // Aircraft tracks
       map.addSource('tracks', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -89,7 +108,25 @@ const SurveyMap = (() => {
     onAircraftClick = handler;
   }
 
+  function setWatchBounds(bounds) {
+    if (!map || !map.getSource('watch-bounds') || !bounds || bounds.length !== 4) return;
+    const [west, south, east, north] = bounds;
+    map.getSource('watch-bounds').setData({
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [west, south], [east, south], [east, north], [west, north], [west, south],
+          ],
+        },
+        properties: {},
+      }],
+    });
+  }
+
   function getMap() { return map; }
 
-  return { init, updateTracks, zoomToBounds, setClickHandler, getMap };
+  return { init, updateTracks, zoomToBounds, setWatchBounds, setClickHandler, getMap };
 })();

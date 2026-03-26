@@ -1,6 +1,7 @@
 {
   "type": "FeatureCollection",
   "generated_at": "2026-03-24T14:32:00Z",
+  "watch_bounds": [-98.0, 40.0, -88.0, 50.0],
   "features": [
     {
       "type": "Feature",

@@ -90,7 +90,7 @@ func TestBuildLiveCollection(t *testing.T) {
 		},
 	}
 
-	collection := BuildLiveCollection(tracks)
+	collection := BuildLiveCollection(tracks, nil)
 
 	if collection.Type != "FeatureCollection" {
 		t.Errorf("expected FeatureCollection, got %s", collection.Type)

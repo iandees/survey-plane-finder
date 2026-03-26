@@ -776,7 +776,8 @@ func main() {
 			}
 		case <-liveUploadTicker.C:
 			if r2Client != nil {
-				collection := geojson.BuildLiveCollection(aircraftTracks)
+				watchBounds := [4]float64{west, south, east, north}
+				collection := geojson.BuildLiveCollection(aircraftTracks, &watchBounds)
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				err := r2Client.UploadJSON(ctx, "live/current.json", collection)
 				cancel()
