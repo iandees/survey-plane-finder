@@ -1,6 +1,9 @@
 const SurveyMap = (() => {
   let map = null;
+  let mapLoaded = false;
   let onAircraftClick = null;
+  let pendingTracks = null;
+  let pendingWatchBounds = null;
 
   function init(containerId, opts = {}) {
     map = new maplibregl.Map({
@@ -74,13 +77,25 @@ const SurveyMap = (() => {
       map.on('mouseleave', 'track-lines', () => {
         map.getCanvas().style.cursor = '';
       });
+
+      mapLoaded = true;
+
+      // Replay any calls that arrived before map loaded
+      if (pendingWatchBounds) {
+        setWatchBounds(pendingWatchBounds);
+        pendingWatchBounds = null;
+      }
+      if (pendingTracks) {
+        updateTracks(pendingTracks);
+        pendingTracks = null;
+      }
     });
 
     return map;
   }
 
   function updateTracks(featureCollection) {
-    if (!map || !map.getSource('tracks')) return;
+    if (!mapLoaded) { pendingTracks = featureCollection; return; }
 
     const features = (featureCollection.features || []).map(f => ({
       ...f,
@@ -109,7 +124,8 @@ const SurveyMap = (() => {
   }
 
   function setWatchBounds(bounds) {
-    if (!map || !map.getSource('watch-bounds') || !bounds || bounds.length !== 4) return;
+    if (!bounds || bounds.length !== 4) return;
+    if (!mapLoaded) { pendingWatchBounds = bounds; return; }
     const [west, south, east, north] = bounds;
     map.getSource('watch-bounds').setData({
       type: 'FeatureCollection',
