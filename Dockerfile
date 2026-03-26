@@ -9,4 +9,6 @@ RUN CGO_ENABLED=0 go build -o survey-plane-finder .
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /app/survey-plane-finder /usr/local/bin/survey-plane-finder
+ENV DATA_DIR=/data
+VOLUME /data
 ENTRYPOINT ["survey-plane-finder"]

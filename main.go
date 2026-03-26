@@ -479,17 +479,24 @@ func writeHeatmapImages() {
 	}
 }
 
+// dataDir is the directory for persistent data files. Set via DATA_DIR env var.
+var dataDir = "."
+
+func dataPath(filename string) string {
+	return filepath.Join(dataDir, filename)
+}
+
 func saveAircraftTracks() error {
 	tracksData, err := json.MarshalIndent(aircraftTracks, "", "  ")
 	if err != nil {
 		return fmt.Errorf("error marshaling tracks: %v", err)
 	}
 
-	return os.WriteFile("saved_tracks.json", tracksData, 0644)
+	return os.WriteFile(dataPath("saved_tracks.json"), tracksData, 0644)
 }
 
 func loadAircraftTracks() error {
-	data, err := os.ReadFile("saved_tracks.json")
+	data, err := os.ReadFile(dataPath("saved_tracks.json"))
 	if err != nil {
 		if os.IsNotExist(err) {
 			log.Println("No saved tracks file found, starting fresh")
@@ -614,11 +621,16 @@ func writeTracksToFile(file string) {
 func main() {
 	log.Println("Starting ADSB survey aircraft detector")
 
+	if dir := os.Getenv("DATA_DIR"); dir != "" {
+		dataDir = dir
+		log.Printf("Using data directory: %s", dataDir)
+	}
+
 	// Default location (can be changed to your area of interest)
 	lat := 44.9561276
 	lon := -93.204049
 	radius := 250
-	trackFile := "aircraft_tracks.json"
+	trackFile := dataPath("aircraft_tracks.json")
 
 	// Try to load saved tracks
 	if err := loadAircraftTracks(); err != nil {

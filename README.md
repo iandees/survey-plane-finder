@@ -28,6 +28,7 @@ adsb.lol API → Go detector (runs at home) → Cloudflare R2 (JSON files) → S
 
 ```bash
 docker run -d \
+  -v /path/to/data:/data \
   -e R2_ENDPOINT=https://<account>.r2.cloudflarestorage.com \
   -e R2_BUCKET_NAME=survey-planes \
   -e R2_ACCESS_KEY_ID=<key> \
@@ -54,6 +55,7 @@ go run .
 
 | Variable | Required | Description |
 |----------|----------|-------------|
+| `DATA_DIR` | No | Directory for persistent data files (default: current directory, `/data` in Docker) |
 | `R2_ENDPOINT` | No | Cloudflare R2 S3-compatible endpoint URL |
 | `R2_BUCKET_NAME` | If R2 | R2 bucket name |
 | `R2_ACCESS_KEY_ID` | If R2 | R2 API token access key |
