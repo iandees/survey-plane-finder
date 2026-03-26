@@ -645,8 +645,30 @@ func main() {
 		}
 		r2Client = client
 		todayArchive = archive.New()
-		archiveDates = []string{}
-		log.Println("R2 upload enabled")
+
+		// Load existing index from R2 so we don't overwrite it
+		var existingIndex struct {
+			Dates []string `json:"dates"`
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := r2Client.DownloadJSON(ctx, "index.json", &existingIndex); err != nil {
+			log.Printf("Could not load existing index.json: %v", err)
+		}
+		cancel()
+		archiveDates = existingIndex.Dates
+		log.Printf("R2 upload enabled (loaded %d existing archive dates)", len(archiveDates))
+
+		// Load existing archive for today so we don't overwrite it
+		today := time.Now().Format("2006-01-02")
+		var existingArchive geojson.FeatureCollection
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := r2Client.DownloadJSON(ctx2, fmt.Sprintf("archive/%s.json", today), &existingArchive); err != nil {
+			log.Printf("Could not load existing archive for %s: %v", today, err)
+		} else if len(existingArchive.Features) > 0 {
+			todayArchive.LoadExisting(existingArchive)
+			log.Printf("Loaded %d existing detections for %s", len(existingArchive.Features), today)
+		}
+		cancel2()
 	} else {
 		log.Println("R2 not configured, running in local-only mode")
 	}
@@ -720,22 +742,27 @@ func main() {
 			if r2Client != nil {
 				today := time.Now().Format("2006-01-02")
 				if today != currentDate {
-					archiveDates = append(archiveDates, currentDate)
-					idxCtx, idxCancel := context.WithTimeout(context.Background(), 10*time.Second)
-					indexData := map[string]interface{}{"dates": archiveDates}
-					err := r2Client.UploadJSON(idxCtx, "index.json", indexData)
-					idxCancel()
-					if err != nil {
-						log.Printf("Error uploading index.json: %v", err)
-					}
-
 					todayArchive.ResetForNewDay()
 					currentDate = today
 				}
 
+				// Ensure current date is in archiveDates
+				if len(archiveDates) == 0 || archiveDates[len(archiveDates)-1] != currentDate {
+					archiveDates = append(archiveDates, currentDate)
+				}
+
+				// Upload index.json with all known dates
+				idxCtx, idxCancel := context.WithTimeout(context.Background(), 10*time.Second)
+				indexData := map[string]interface{}{"dates": archiveDates}
+				err := r2Client.UploadJSON(idxCtx, "index.json", indexData)
+				idxCancel()
+				if err != nil {
+					log.Printf("Error uploading index.json: %v", err)
+				}
+
 				collection := todayArchive.BuildCollection(currentDate)
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				err := r2Client.UploadJSON(ctx, fmt.Sprintf("archive/%s.json", currentDate), collection)
+				err = r2Client.UploadJSON(ctx, fmt.Sprintf("archive/%s.json", currentDate), collection)
 				cancel()
 				if err != nil {
 					log.Printf("Error uploading archive: %v", err)

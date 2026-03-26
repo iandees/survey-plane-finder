@@ -9,13 +9,31 @@ import (
 )
 
 type Archive struct {
-	mu         sync.RWMutex
-	detections map[string]*model.AircraftTrack
+	mu              sync.RWMutex
+	detections      map[string]*model.AircraftTrack
+	priorFeatures   []geojson.Feature // features loaded from a previous archive file
+	priorICAOs      map[string]bool   // ICAOs from prior features, to avoid duplicates
 }
 
 func New() *Archive {
 	return &Archive{
-		detections: make(map[string]*model.AircraftTrack),
+		detections:    make(map[string]*model.AircraftTrack),
+		priorICAOs:    make(map[string]bool),
+	}
+}
+
+// LoadExisting seeds the archive with features from a previously-uploaded archive file.
+// These features are preserved in output unless a new detection with the same ICAO arrives.
+func (a *Archive) LoadExisting(fc geojson.FeatureCollection) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.priorFeatures = fc.Features
+	a.priorICAOs = make(map[string]bool)
+	for _, f := range fc.Features {
+		if icao, ok := f.Properties["icao"].(string); ok {
+			a.priorICAOs[icao] = true
+		}
 	}
 }
 
@@ -52,7 +70,9 @@ func (a *Archive) BuildCollection(date string) geojson.FeatureCollection {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	features := make([]geojson.Feature, 0, len(a.detections))
+	// Start with new detections (these take priority over prior features)
+	newICAOs := make(map[string]bool)
+	features := make([]geojson.Feature, 0, len(a.detections)+len(a.priorFeatures))
 	for _, track := range a.detections {
 		if len(track.Points) < 2 {
 			continue
@@ -68,7 +88,17 @@ func (a *Archive) BuildCollection(date string) geojson.FeatureCollection {
 
 		feature.Geometry.Coordinates = geojson.SimplifyTrack(feature.Geometry.Coordinates, 0.0001)
 
+		newICAOs[track.Hex] = true
 		features = append(features, feature)
+	}
+
+	// Add prior features that haven't been superseded by new detections
+	for _, f := range a.priorFeatures {
+		if icao, ok := f.Properties["icao"].(string); ok {
+			if !newICAOs[icao] {
+				features = append(features, f)
+			}
+		}
 	}
 
 	return geojson.FeatureCollection{
@@ -82,6 +112,8 @@ func (a *Archive) ResetForNewDay() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.detections = make(map[string]*model.AircraftTrack)
+	a.priorFeatures = nil
+	a.priorICAOs = make(map[string]bool)
 }
 
 func calculateTrackMiles(points []model.TrackPoint) float64 {
