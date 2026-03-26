@@ -124,11 +124,9 @@ const SurveyMap = (() => {
   }
 
   function setWatchBounds(bounds) {
-    console.log('setWatchBounds called', { bounds, mapLoaded });
     if (!bounds || bounds.length !== 4) return;
     if (!mapLoaded) { pendingWatchBounds = bounds; return; }
     const [west, south, east, north] = bounds;
-    console.log('Drawing watch bounds', { west, south, east, north });
     map.getSource('watch-bounds').setData({
       type: 'FeatureCollection',
       features: [{
