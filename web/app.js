@@ -159,6 +159,18 @@
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
+  // About dialog
+  const aboutOverlay = document.getElementById('about-overlay');
+  document.getElementById('about-btn').addEventListener('click', () => {
+    aboutOverlay.style.display = 'flex';
+  });
+  document.getElementById('about-close').addEventListener('click', () => {
+    aboutOverlay.style.display = 'none';
+  });
+  aboutOverlay.addEventListener('click', (e) => {
+    if (e.target === aboutOverlay) aboutOverlay.style.display = 'none';
+  });
+
   // Start
   await Data.fetchIndex();
   parseHash();

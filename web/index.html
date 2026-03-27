@@ -22,7 +22,24 @@
       <button class="date-arrow" id="date-next">›</button>
       <button class="live-btn" id="live-btn" style="display:none">● Live</button>
     </div>
+    <button class="about-btn" id="about-btn">?</button>
   </header>
+
+  <div class="about-overlay" id="about-overlay" style="display:none">
+    <div class="about-dialog">
+      <div class="about-header">
+        <h2>About Survey Plane Finder</h2>
+        <button class="close-btn" id="about-close">&times;</button>
+      </div>
+      <div class="about-body">
+        <p>This project detects aircraft flying aerial survey patterns using live ADS-B data from <a href="https://adsb.lol" target="_blank">adsb.lol</a>.</p>
+        <p>Survey aircraft typically fly back-and-forth parallel lines at a consistent altitude — a pattern used for LiDAR mapping, aerial photography, pipeline inspection, and environmental surveys.</p>
+        <p>The detector watches for these patterns in real time and publishes detections to this map. The dashed orange rectangle shows the area currently being monitored.</p>
+        <p>Data updates approximately every 60 seconds. Use the date arrows to browse past detections.</p>
+        <p><a href="https://github.com/iandees/survey-plane-finder" target="_blank">View source on GitHub</a></p>
+      </div>
+    </div>
+  </div>
 
   <main class="content">
     <div id="map" class="map"></div>

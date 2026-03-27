@@ -203,6 +203,58 @@ body {
 }
 .link-list a:hover { color: #6db3f0; }
 
+.about-btn {
+  background: #333;
+  border: none;
+  color: #888;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.about-btn:hover { background: #444; color: #fff; }
+
+.about-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.about-dialog {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-width: 480px;
+  width: 90%;
+  overflow: hidden;
+}
+.about-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.about-header h2 { color: #fff; font-size: 1rem; margin: 0; }
+.about-body {
+  padding: 1.25rem;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--text);
+}
+.about-body p { margin-bottom: 0.75rem; }
+.about-body p:last-child { margin-bottom: 0; }
+.about-body a { color: var(--accent); text-decoration: none; }
+.about-body a:hover { color: #6db3f0; }
+
 @media (max-width: 768px) {
   .side-panel { display: none; }
   .stats { display: none; }
