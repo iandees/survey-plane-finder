@@ -52,6 +52,6 @@ type AircraftTrack struct {
 	Flagged         bool
 	DetectionMethod string // "grid" or "exhaustive"
 	LastSeen        time.Time
-	// Miles spent in each [direction][altitude] cell
-	Grid [][]float64
+	// Miles spent in each [heading_bin, altitude_bin] cell (sparse)
+	Grid map[[2]int]float64
 }
