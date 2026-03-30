@@ -30,7 +30,7 @@ var aircraftTracks = make(map[string]*model.AircraftTrack)
 // Configuration parameters
 const (
 	// Wait this long before removing aircraft tracks after not seeing them
-	trackTimeout = 5 * time.Minute
+	trackTimeout = 2 * time.Minute
 	// Maximum altitude for survey aircraft in feet
 	surveyMaxAltitude = 20000
 	// Minimum altitude for survey aircraft in feet
