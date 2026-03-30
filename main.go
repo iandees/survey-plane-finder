@@ -668,11 +668,11 @@ func main() {
 		log.Printf("Using data directory: %s", dataDir)
 	}
 
-	// Default bounding box (Minneapolis area, ~250mi radius)
-	south := 40.0
-	north := 50.0
-	west := -98.0
-	east := -88.0
+	// Default bounding box (CONUS)
+	south := 24.5
+	north := 49.5
+	west := -125.0
+	east := -66.5
 	trackFile := dataPath("aircraft_tracks.json")
 
 	// Try to load saved tracks
