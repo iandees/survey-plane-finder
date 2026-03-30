@@ -30,7 +30,7 @@ var aircraftTracks = make(map[string]*model.AircraftTrack)
 // Configuration parameters
 const (
 	// Wait this long before removing aircraft tracks after not seeing them
-	trackTimeout = 5 * time.Minute
+	trackTimeout = 2 * time.Minute
 	// Maximum altitude for survey aircraft in feet
 	surveyMaxAltitude = 20000
 	// Minimum altitude for survey aircraft in feet
@@ -53,6 +53,11 @@ const (
 	gridBucketDegrees = 5
 	// Number of feet of altitude each grid bucket covers
 	gridBucketFeet = 100
+
+	// Maximum age of points to keep for unflagged aircraft
+	maxPointAge = 30 * time.Minute
+	// Minimum time between points when downsampling old data for flagged aircraft
+	downsampleInterval = 30 * time.Second
 
 	// Heatmap image generation interval
 	heatmapGenerationInterval = 30 * time.Second
@@ -139,7 +144,6 @@ func updateAircraftTracks(aircraft []model.Aircraft) {
 				Hex:      a.Hex,
 				Flight:   a.Flight,
 				Points:   make([]model.TrackPoint, 0),
-				Grid:     initTrackingGrid(),
 				LastSeen: now,
 			}
 			aircraftTracks[a.Hex] = track
@@ -160,27 +164,31 @@ func updateAircraftTracks(aircraft []model.Aircraft) {
 			Timestamp: now,
 		})
 
-		// Calculate distance from last point and record that distance spent in the grid based on the previous point's track and altitude.
-		if len(track.Points) > 1 {
-			thisPoint := track.Points[len(track.Points)-1]
-			lastPoint := track.Points[len(track.Points)-2]
-			updateGrid(track, thisPoint, lastPoint)
-		}
-
 		track.LastSeen = now
 
-		// Analyze track for survey pattern if aircraft is below max altitude
-		// Skip analysis for ground aircraft
-		if len(track.Points) >= minTrackPoints && !track.Flagged {
-			if detectSurveyPatternExhaustive(track) {
-				track.Flagged = true
-				track.DetectionMethod = "exhaustive"
-				flightID := track.Hex
-				if track.Flight != "" {
-					flightID = fmt.Sprintf("%s (%s)", track.Flight, track.Hex)
+		// Once we have enough points, maintain the grid and run detection
+		if len(track.Points) >= minTrackPoints {
+			if track.Grid == nil {
+				// First time reaching threshold — backfill grid from all existing points
+				backfillGrid(track)
+			} else if len(track.Points) > 1 {
+				// Incremental update with latest point
+				thisPoint := track.Points[len(track.Points)-1]
+				lastPoint := track.Points[len(track.Points)-2]
+				updateGrid(track, lastPoint, thisPoint)
+			}
+
+			if !track.Flagged {
+				if detectSurveyPatternExhaustive(track) {
+					track.Flagged = true
+					track.DetectionMethod = "exhaustive"
+					flightID := track.Hex
+					if track.Flight != "" {
+						flightID = fmt.Sprintf("%s (%s)", track.Flight, track.Hex)
+					}
+					log.Printf("SURVEY AIRCRAFT DETECTED: %s - https://globe.adsb.lol/?icao=%s",
+						flightID, track.Hex)
 				}
-				log.Printf("SURVEY AIRCRAFT DETECTED: %s - https://globe.adsb.lol/?icao=%s",
-					flightID, track.Hex)
 			}
 		}
 	}
@@ -190,37 +198,36 @@ func updateAircraftTracks(aircraft []model.Aircraft) {
 }
 
 func detectSurveyPatternWithGrid(track *model.AircraftTrack) bool {
-	// Check if we have enough data in the grid
 	if len(track.Points) < minTrackPoints {
 		return false
 	}
+	if track.Grid == nil {
+		return false
+	}
 
-	// Look for opposite tracks with similar altitudes and significant distance
-	numHeadingBins := len(track.Grid)
+	numHeadingBins := 360 / gridBucketDegrees
 
-	for trackIdx := 0; trackIdx < numHeadingBins; trackIdx++ {
-		// Calculate the opposite direction index (180 degrees away)
+	for key, miles := range track.Grid {
+		trackIdx := key[0]
+		altIdx := key[1]
+
+		if miles < minDistanceOnParallelPath {
+			continue
+		}
+
 		oppositeTrackIdx := (trackIdx + (numHeadingBins / 2)) % numHeadingBins
 
-		// Check each altitude
-		for altIdx := 0; altIdx < len(track.Grid[trackIdx]); altIdx++ {
-			// Check if we have at least minDistanceOnParallelPath miles in this direction
-			if track.Grid[trackIdx][altIdx] < minDistanceOnParallelPath {
-				continue
-			}
+		// Check same altitude
+		if track.Grid[[2]int{oppositeTrackIdx, altIdx}] >= minDistanceOnParallelPath {
+			return true
+		}
 
-			// Check if the opposite direction has sufficient miles at the same altitude
-			if track.Grid[oppositeTrackIdx][altIdx] >= minDistanceOnParallelPath {
-				return true
-			}
-
-			// Also check adjacent altitude bins (to account for slight altitude changes)
-			for altOffset := -1; altOffset <= 1; altOffset += 2 { // Just check -1 and +1
-				checkAltIdx := altIdx + altOffset
-				if checkAltIdx >= 0 && checkAltIdx < len(track.Grid[oppositeTrackIdx]) {
-					if track.Grid[oppositeTrackIdx][checkAltIdx] >= minDistanceOnParallelPath {
-						return true
-					}
+		// Check adjacent altitude bins
+		for _, altOffset := range []int{-1, 1} {
+			checkAltIdx := altIdx + altOffset
+			if checkAltIdx >= 0 && checkAltIdx < surveyMaxAltitude/gridBucketFeet {
+				if track.Grid[[2]int{oppositeTrackIdx, checkAltIdx}] >= minDistanceOnParallelPath {
+					return true
 				}
 			}
 		}
@@ -229,27 +236,34 @@ func detectSurveyPatternWithGrid(track *model.AircraftTrack) bool {
 	return false
 }
 
-func initTrackingGrid() [][]float64 {
-	grid := make([][]float64, 360/gridBucketDegrees)
-	for i := range grid {
-		grid[i] = make([]float64, surveyMaxAltitude/gridBucketFeet)
+// backfillGrid initializes the grid and populates it from existing points.
+func backfillGrid(track *model.AircraftTrack) {
+	track.Grid = make(map[[2]int]float64)
+	for i := 1; i < len(track.Points); i++ {
+		updateGrid(track, track.Points[i-1], track.Points[i])
 	}
-	return grid
 }
 
 func updateGrid(track *model.AircraftTrack, oldPoint model.TrackPoint, newPoint model.TrackPoint) {
-	altitudeCell := int(math.Floor(float64(oldPoint.Alt) / gridBucketFeet))   // 1000 ft cells
-	trackCell := int(math.Floor(float64(oldPoint.Track) / gridBucketDegrees)) // 5 degree cells
+	altitudeCell := int(math.Floor(float64(oldPoint.Alt) / gridBucketFeet))
+	trackCell := int(math.Floor(float64(oldPoint.Track) / gridBucketDegrees))
 
-	// Ensure we don't go out of bounds
-	if trackCell < 0 || trackCell >= len(track.Grid) {
+	numHeadingBins := 360 / gridBucketDegrees
+	numAltBins := surveyMaxAltitude / gridBucketFeet
+
+	if trackCell < 0 || trackCell >= numHeadingBins {
 		return
 	}
-	if altitudeCell < 0 || altitudeCell >= len(track.Grid[0]) {
+	if altitudeCell < 0 || altitudeCell >= numAltBins {
 		return
 	}
 
-	track.Grid[trackCell][altitudeCell] += distanceInMiles(oldPoint.Lat, oldPoint.Lon, newPoint.Lat, newPoint.Lon)
+	if track.Grid == nil {
+		track.Grid = make(map[[2]int]float64)
+	}
+
+	key := [2]int{trackCell, altitudeCell}
+	track.Grid[key] += distanceInMiles(oldPoint.Lat, oldPoint.Lon, newPoint.Lat, newPoint.Lon)
 }
 
 // cleanupOldTracks removes tracks that haven't been updated recently
@@ -257,8 +271,53 @@ func cleanupOldTracks(now time.Time) {
 	for hex, track := range aircraftTracks {
 		if now.Sub(track.LastSeen) > trackTimeout {
 			delete(aircraftTracks, hex)
+			continue
+		}
+		pruneTrackPoints(track, now)
+	}
+}
+
+// pruneTrackPoints removes or downsamples old points based on flagged status.
+func pruneTrackPoints(track *model.AircraftTrack, now time.Time) {
+	cutoff := now.Add(-maxPointAge)
+
+	if !track.Flagged {
+		// Unflagged: drop all points older than cutoff
+		idx := 0
+		for i, p := range track.Points {
+			if !p.Timestamp.Before(cutoff) {
+				idx = i
+				break
+			}
+			// If all points are old, keep none
+			if i == len(track.Points)-1 {
+				idx = len(track.Points)
+			}
+		}
+		if idx > 0 {
+			track.Points = track.Points[idx:]
+		}
+		return
+	}
+
+	// Flagged: downsample points older than cutoff, keep recent points as-is
+	var result []model.TrackPoint
+	var lastKept time.Time
+
+	for _, p := range track.Points {
+		if !p.Timestamp.Before(cutoff) {
+			// Recent point — keep all
+			result = append(result, p)
+		} else {
+			// Old point — keep if enough time has passed since last kept
+			if lastKept.IsZero() || p.Timestamp.Sub(lastKept) >= downsampleInterval {
+				result = append(result, p)
+				lastKept = p.Timestamp
+			}
 		}
 	}
+
+	track.Points = result
 }
 
 // detectSurveyPatternExhaustive analyzes an aircraft track to determine if it's flying a survey pattern
@@ -551,98 +610,85 @@ func loadAircraftTracks() error {
 }
 
 func generateAircraftHeatmap(hex string, track *model.AircraftTrack) {
-	// Find maximum value in grid for normalization
-	maxValue := 0.1 // Avoid division by zero
+	if track.Grid == nil {
+		return
+	}
 
-	for trackIdx := range track.Grid {
-		for altIdx := range track.Grid[trackIdx] {
-			if track.Grid[trackIdx][altIdx] > maxValue {
-				maxValue = track.Grid[trackIdx][altIdx]
-			}
+	numHeadingBins := 360 / gridBucketDegrees
+	numAltBins := surveyMaxAltitude / gridBucketFeet
+
+	// Find maximum value in grid for normalization
+	maxValue := 0.1
+	for _, v := range track.Grid {
+		if v > maxValue {
+			maxValue = v
 		}
 	}
 
-	// If no data, skip
 	if maxValue == 0.1 {
 		return
 	}
 
-	// Cap maximum for better visualization
 	if maxValue > minMilesForMaxIntensity {
 		maxValue = minMilesForMaxIntensity
 	}
 
-	// Create image (heading on X axis, altitude on Y axis)
-	width := len(track.Grid) * cellSize
-	height := 0
-	if len(track.Grid) > 0 {
-		height = len(track.Grid[0]) * cellSize
-	}
+	width := numHeadingBins * cellSize
+	height := numAltBins * cellSize
 
 	if width == 0 || height == 0 {
-		return // Skip if dimensions are invalid
+		return
 	}
 
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 
-	// Fill with background color (black)
 	for x := 0; x < width; x++ {
 		for y := 0; y < height; y++ {
 			img.Set(x, y, color.RGBA{0, 0, 0, 255})
 		}
 	}
 
-	// Draw each cell with intensity based on miles flown
-	for trackIdx := range track.Grid {
-		for altIdx := range track.Grid[trackIdx] {
-			value := track.Grid[trackIdx][altIdx]
-			if value <= 0 {
-				continue
-			}
+	for key, value := range track.Grid {
+		trackIdx := key[0]
+		altIdx := key[1]
 
-			// Normalize value and create color (use logarithmic scale for better visibility)
-			// This helps make smaller values more visible
-			normalizedValue := int(math.Log1p(value/maxValue*9.0) / math.Log(10) * maxColorIntensity)
-			if normalizedValue > maxColorIntensity {
-				normalizedValue = maxColorIntensity
-			}
+		if value <= 0 {
+			continue
+		}
 
-			cellColor := color.RGBA{
-				R: uint8(normalizedValue),
-				G: uint8(normalizedValue),
-				B: uint8(normalizedValue),
-				A: 255,
-			}
+		normalizedValue := int(math.Log1p(value/maxValue*9.0) / math.Log(10) * maxColorIntensity)
+		if normalizedValue > maxColorIntensity {
+			normalizedValue = maxColorIntensity
+		}
 
-			// If this is a survey aircraft, highlight opposite pairs
-			if track.Flagged {
-				oppositeHeadingIdx := (trackIdx + (len(track.Grid) / 2)) % len(track.Grid)
-				if track.Grid[oppositeHeadingIdx][altIdx] > 0 {
-					// Use red for flagged survey patterns
-					cellColor.R = 255
-					cellColor.G = 0
-					cellColor.B = 0
-				}
-			}
+		cellColor := color.RGBA{
+			R: uint8(normalizedValue),
+			G: uint8(normalizedValue),
+			B: uint8(normalizedValue),
+			A: 255,
+		}
 
-			// Fill the cell
-			startX := trackIdx * cellSize
-			startY := (len(track.Grid[0]) - 1 - altIdx) * cellSize // Invert Y axis so higher altitudes are at the top
-			for x := startX; x < startX+cellSize; x++ {
-				for y := startY; y < startY+cellSize; y++ {
-					if x >= 0 && x < width && y >= 0 && y < height {
-						img.Set(x, y, cellColor)
-					}
+		if track.Flagged {
+			oppositeHeadingIdx := (trackIdx + (numHeadingBins / 2)) % numHeadingBins
+			if track.Grid[[2]int{oppositeHeadingIdx, altIdx}] > 0 {
+				cellColor.R = 255
+				cellColor.G = 0
+				cellColor.B = 0
+			}
+		}
+
+		startX := trackIdx * cellSize
+		startY := (numAltBins - 1 - altIdx) * cellSize
+		for x := startX; x < startX+cellSize; x++ {
+			for y := startY; y < startY+cellSize; y++ {
+				if x >= 0 && x < width && y >= 0 && y < height {
+					img.Set(x, y, cellColor)
 				}
 			}
 		}
 	}
 
-	// Add labels (optional - would require more complex image processing)
-
-	// Save the image
 	filename := fmt.Sprintf("%s.png", hex)
-
 	filePath := filepath.Join(heatmapDirectory, filename)
 	file, err := os.Create(filePath)
 	if err != nil {
@@ -668,16 +714,17 @@ func main() {
 		log.Printf("Using data directory: %s", dataDir)
 	}
 
-	// Default bounding box (Minneapolis area, ~250mi radius)
-	south := 40.0
-	north := 50.0
-	west := -98.0
-	east := -88.0
+	// Default bounding box (CONUS)
+	south := 24.5
+	north := 49.5
+	west := -125.0
+	east := -66.5
 	trackFile := dataPath("aircraft_tracks.json")
 
 	// Try to load saved tracks
 	if err := loadAircraftTracks(); err != nil {
-		log.Printf("Error loading aircraft tracks: %v", err)
+		log.Printf("Could not load saved tracks (expected after format upgrade): %v", err)
+		log.Println("Starting with empty track set")
 	} else {
 		log.Printf("Loaded %d aircraft tracks from disk", len(aircraftTracks))
 	}

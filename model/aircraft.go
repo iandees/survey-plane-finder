@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Aircraft represents a single aircraft with position data
 type Aircraft struct {
@@ -52,6 +55,58 @@ type AircraftTrack struct {
 	Flagged         bool
 	DetectionMethod string // "grid" or "exhaustive"
 	LastSeen        time.Time
-	// Miles spent in each [direction][altitude] cell
-	Grid [][]float64
+	// Miles spent in each [heading_bin, altitude_bin] cell (sparse)
+	Grid map[[2]int]float64
+}
+
+// unmarshalHelper is used for JSON deserialization, supporting both sparse and dense grid formats.
+type unmarshalHelper struct {
+	Hex             string          `json:"Hex"`
+	Flight          string          `json:"Flight"`
+	Points          []TrackPoint    `json:"Points"`
+	Flagged         bool            `json:"Flagged"`
+	DetectionMethod string          `json:"DetectionMethod"`
+	LastSeen        time.Time       `json:"LastSeen"`
+	Grid            json.RawMessage `json:"Grid"`
+}
+
+func (t *AircraftTrack) UnmarshalJSON(data []byte) error {
+	var h unmarshalHelper
+	if err := json.Unmarshal(data, &h); err != nil {
+		return err
+	}
+
+	t.Hex = h.Hex
+	t.Flight = h.Flight
+	t.Points = h.Points
+	t.Flagged = h.Flagged
+	t.DetectionMethod = h.DetectionMethod
+	t.LastSeen = h.LastSeen
+
+	if len(h.Grid) == 0 || string(h.Grid) == "null" {
+		return nil
+	}
+
+	// Try sparse format first (map with string keys like "18,35")
+	var sparse map[[2]int]float64
+	if err := json.Unmarshal(h.Grid, &sparse); err == nil {
+		t.Grid = sparse
+		return nil
+	}
+
+	// Fall back to dense format ([][]float64)
+	var dense [][]float64
+	if err := json.Unmarshal(h.Grid, &dense); err != nil {
+		return err
+	}
+
+	t.Grid = make(map[[2]int]float64)
+	for i, row := range dense {
+		for j, val := range row {
+			if val > 0 {
+				t.Grid[[2]int{i, j}] = val
+			}
+		}
+	}
+	return nil
 }

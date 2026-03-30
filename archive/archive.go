@@ -44,6 +44,14 @@ func (a *Archive) AddOrUpdate(track *model.AircraftTrack) {
 	points := make([]model.TrackPoint, len(track.Points))
 	copy(points, track.Points)
 
+	var grid map[[2]int]float64
+	if track.Grid != nil {
+		grid = make(map[[2]int]float64, len(track.Grid))
+		for k, v := range track.Grid {
+			grid[k] = v
+		}
+	}
+
 	a.detections[track.Hex] = &model.AircraftTrack{
 		Hex:             track.Hex,
 		Flight:          track.Flight,
@@ -51,7 +59,7 @@ func (a *Archive) AddOrUpdate(track *model.AircraftTrack) {
 		Flagged:         track.Flagged,
 		DetectionMethod: track.DetectionMethod,
 		LastSeen:        track.LastSeen,
-		Grid:            track.Grid,
+		Grid:            grid,
 	}
 }
 
