@@ -54,6 +54,11 @@ const (
 	// Number of feet of altitude each grid bucket covers
 	gridBucketFeet = 100
 
+	// Maximum age of points to keep for unflagged aircraft
+	maxPointAge = 30 * time.Minute
+	// Minimum time between points when downsampling old data for flagged aircraft
+	downsampleInterval = 30 * time.Second
+
 	// Heatmap image generation interval
 	heatmapGenerationInterval = 30 * time.Second
 	// Cell size in pixels for the heatmap
@@ -266,8 +271,53 @@ func cleanupOldTracks(now time.Time) {
 	for hex, track := range aircraftTracks {
 		if now.Sub(track.LastSeen) > trackTimeout {
 			delete(aircraftTracks, hex)
+			continue
+		}
+		pruneTrackPoints(track, now)
+	}
+}
+
+// pruneTrackPoints removes or downsamples old points based on flagged status.
+func pruneTrackPoints(track *model.AircraftTrack, now time.Time) {
+	cutoff := now.Add(-maxPointAge)
+
+	if !track.Flagged {
+		// Unflagged: drop all points older than cutoff
+		idx := 0
+		for i, p := range track.Points {
+			if !p.Timestamp.Before(cutoff) {
+				idx = i
+				break
+			}
+			// If all points are old, keep none
+			if i == len(track.Points)-1 {
+				idx = len(track.Points)
+			}
+		}
+		if idx > 0 {
+			track.Points = track.Points[idx:]
+		}
+		return
+	}
+
+	// Flagged: downsample points older than cutoff, keep recent points as-is
+	var result []model.TrackPoint
+	var lastKept time.Time
+
+	for _, p := range track.Points {
+		if !p.Timestamp.Before(cutoff) {
+			// Recent point — keep all
+			result = append(result, p)
+		} else {
+			// Old point — keep if enough time has passed since last kept
+			if lastKept.IsZero() || p.Timestamp.Sub(lastKept) >= downsampleInterval {
+				result = append(result, p)
+				lastKept = p.Timestamp
+			}
 		}
 	}
+
+	track.Points = result
 }
 
 // detectSurveyPatternExhaustive analyzes an aircraft track to determine if it's flying a survey pattern
