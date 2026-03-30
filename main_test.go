@@ -28,3 +28,36 @@ func TestSparseGridUpdate(t *testing.T) {
 		t.Errorf("Expected 1 grid entry, got %d", len(track.Grid))
 	}
 }
+
+func TestDeferredGridAllocation(t *testing.T) {
+	// Create a track with fewer than minTrackPoints
+	track := &model.AircraftTrack{
+		Hex:    "abc123",
+		Points: make([]model.TrackPoint, 0),
+	}
+
+	// Add points below threshold
+	for i := 0; i < minTrackPoints-1; i++ {
+		track.Points = append(track.Points, model.TrackPoint{
+			Lat: 44.95 + float64(i)*0.01, Lon: -93.21, Alt: 3500, Track: 90, Speed: 120,
+		})
+	}
+
+	// Grid should still be nil
+	if track.Grid != nil {
+		t.Error("Grid should be nil before reaching minTrackPoints")
+	}
+
+	// Add one more point to reach threshold, then backfill
+	track.Points = append(track.Points, model.TrackPoint{
+		Lat: 44.95 + float64(minTrackPoints)*0.01, Lon: -93.21, Alt: 3500, Track: 90, Speed: 120,
+	})
+	backfillGrid(track)
+
+	if track.Grid == nil {
+		t.Error("Grid should be allocated after backfill")
+	}
+	if len(track.Grid) == 0 {
+		t.Error("Grid should have entries after backfill")
+	}
+}

@@ -139,7 +139,6 @@ func updateAircraftTracks(aircraft []model.Aircraft) {
 				Hex:      a.Hex,
 				Flight:   a.Flight,
 				Points:   make([]model.TrackPoint, 0),
-				Grid:     initTrackingGrid(),
 				LastSeen: now,
 			}
 			aircraftTracks[a.Hex] = track
@@ -160,27 +159,31 @@ func updateAircraftTracks(aircraft []model.Aircraft) {
 			Timestamp: now,
 		})
 
-		// Calculate distance from last point and record that distance spent in the grid based on the previous point's track and altitude.
-		if len(track.Points) > 1 {
-			thisPoint := track.Points[len(track.Points)-1]
-			lastPoint := track.Points[len(track.Points)-2]
-			updateGrid(track, thisPoint, lastPoint)
-		}
-
 		track.LastSeen = now
 
-		// Analyze track for survey pattern if aircraft is below max altitude
-		// Skip analysis for ground aircraft
-		if len(track.Points) >= minTrackPoints && !track.Flagged {
-			if detectSurveyPatternExhaustive(track) {
-				track.Flagged = true
-				track.DetectionMethod = "exhaustive"
-				flightID := track.Hex
-				if track.Flight != "" {
-					flightID = fmt.Sprintf("%s (%s)", track.Flight, track.Hex)
+		// Once we have enough points, maintain the grid and run detection
+		if len(track.Points) >= minTrackPoints {
+			if track.Grid == nil {
+				// First time reaching threshold — backfill grid from all existing points
+				backfillGrid(track)
+			} else if len(track.Points) > 1 {
+				// Incremental update with latest point
+				thisPoint := track.Points[len(track.Points)-1]
+				lastPoint := track.Points[len(track.Points)-2]
+				updateGrid(track, lastPoint, thisPoint)
+			}
+
+			if !track.Flagged {
+				if detectSurveyPatternExhaustive(track) {
+					track.Flagged = true
+					track.DetectionMethod = "exhaustive"
+					flightID := track.Hex
+					if track.Flight != "" {
+						flightID = fmt.Sprintf("%s (%s)", track.Flight, track.Hex)
+					}
+					log.Printf("SURVEY AIRCRAFT DETECTED: %s - https://globe.adsb.lol/?icao=%s",
+						flightID, track.Hex)
 				}
-				log.Printf("SURVEY AIRCRAFT DETECTED: %s - https://globe.adsb.lol/?icao=%s",
-					flightID, track.Hex)
 			}
 		}
 	}
@@ -228,8 +231,12 @@ func detectSurveyPatternWithGrid(track *model.AircraftTrack) bool {
 	return false
 }
 
-func initTrackingGrid() map[[2]int]float64 {
-	return nil
+// backfillGrid initializes the grid and populates it from existing points.
+func backfillGrid(track *model.AircraftTrack) {
+	track.Grid = make(map[[2]int]float64)
+	for i := 1; i < len(track.Points); i++ {
+		updateGrid(track, track.Points[i-1], track.Points[i])
+	}
 }
 
 func updateGrid(track *model.AircraftTrack, oldPoint model.TrackPoint, newPoint model.TrackPoint) {
