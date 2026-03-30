@@ -723,7 +723,8 @@ func main() {
 
 	// Try to load saved tracks
 	if err := loadAircraftTracks(); err != nil {
-		log.Printf("Error loading aircraft tracks: %v", err)
+		log.Printf("Could not load saved tracks (expected after format upgrade): %v", err)
+		log.Println("Starting with empty track set")
 	} else {
 		log.Printf("Loaded %d aircraft tracks from disk", len(aircraftTracks))
 	}
